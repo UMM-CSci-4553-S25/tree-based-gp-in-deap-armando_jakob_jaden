@@ -1,24 +1,26 @@
-#    This file is part of DEAP.
-#
-#    DEAP is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Lesser General Public License as
-#    published by the Free Software Foundation, either version 3 of
-#    the License, or (at your option) any later version.
-#
-#    DEAP is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-#    GNU Lesser General Public License for more details.
-#
-#    You should have received a copy of the GNU Lesser General Public
-#    License along with DEAP. If not, see <http://www.gnu.org/licenses/>.
-
+import operator
+import math
 import random
 
 import numpy
 
-from deap import algorithms, bas, creator, tools
+from deap import algorithms, base, creator, tools, gp
 
 
+# Define new functions
+def SmallOrLarge(x):
+    if x >= 1000 & x < 2000:
+        return x
+    elif x >= 2000:
+        return 1
+    else:
+        return 0 # We can change the 0 and 1 to Small and Large to fit with the problem
 
-
+def IntToString(x):
+    if x == 0:
+        return "Small"
+    elif x == 1:
+        return "Large"
+    else:
+        return "Mid" 
+    
