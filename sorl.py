@@ -1,6 +1,7 @@
 import operator
 import random
 import numpy
+import math
 
 from functools import partial
 from deap import algorithms, base, creator, tools, gp
@@ -76,7 +77,7 @@ def evalClassifier(individual):
     return 1.0 - (correct_behavior / 20),
 
 toolbox.register("evaluate", evalClassifier)
-toolbox.register("select", tools.selTournament, tournsize=5)
+toolbox.register("select", tools.selTournament, tournsize=3)
 toolbox.register("mate", gp.cxOnePoint)
 toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
 toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
@@ -95,18 +96,14 @@ def main():
     mstats.register("min", numpy.min)
     mstats.register("max", numpy.max)
 
-    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.1, 40, stats=mstats,
+    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.1, 500, stats=mstats,
                                    halloffame=hof, verbose=True)
 
     for winner in hof:
         print("Best individual:")
         print(str(winner))
 
-        func = toolbox.compile(expr=winner)
-        for x in [500, 1500, 2500]:
-            print(f"x = {x} → output: {func(x)}")
-
-    return pop, log, hof
+        return pop, log, hof
 
 if __name__ == "__main__":
     main()
