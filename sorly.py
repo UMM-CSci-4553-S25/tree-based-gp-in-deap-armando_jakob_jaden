@@ -6,11 +6,11 @@ from functools import partial
 from deap import algorithms, base, creator, tools, gp
 
 # Define the comparison and label functions
-def greater_equal(x: int, threshold: int) -> bool:
-    return x >= threshold
+def greater_equal(x: int, y: int) -> bool:
+    return x >= y
 
-def less_than(x: int, threshold: int) -> bool:
-    return x < threshold
+def less_than(x: int, y: int) -> bool:
+    return x < y
 
 def label_large(x: int) -> str:
     # print("large")

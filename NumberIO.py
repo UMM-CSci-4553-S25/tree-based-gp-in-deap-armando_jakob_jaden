@@ -196,7 +196,7 @@ def main():
     mstats.register("max", numpy.max)
 
     # Does the run, going for 40 generations (the 5th argument to `eaSimple`).
-    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.1, 40, stats=mstats,
+    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.1, 100, stats=mstats,
                                    halloffame=hof, verbose=True)
 
     # print log

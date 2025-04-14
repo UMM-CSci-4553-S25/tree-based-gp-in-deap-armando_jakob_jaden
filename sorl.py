@@ -1,65 +1,85 @@
-
 import operator
-import math
 import random
-
 import numpy
 
 from functools import partial
 from deap import algorithms, base, creator, tools, gp
 
-# Define new functions
+# Define the comparison and label functions
+def greater_than(x: int, y: int) -> bool:
+    return x > y
 
-def greaterthan(a: int, b: int) -> bool:
-    """Check if a is greater than n."""
-    return a > b
+def less_than(x: int, y: int) -> bool:
+    return x < y
 
-def lessthan(a: int, b: int) -> bool:
-    """Check if a is less than n."""
-    return a < b
+def equals(x: int, y: int) -> bool:
+    return x == y
 
-def equal(a: int, b: int) -> bool:
-    """Check if a is equal to n."""
-    return a == b
+def label_large(x: int) -> str:
+    # print("large")
+    return "large"
 
-pset = gp.PrimitiveSet("MAIN", 2)
+def label_small(x: int) -> str:
+    # print("small")
+    return "small"
 
-pset.addPrimitive(greaterthan, 2, name="greaterthan")
-pset.addPrimitive(lessthan, 2, name="lessthan")
+def if_then_else(condition: bool, out1, out2):
+    return out1 if condition else out2
 
-pset.addPrimitive(equal, 2, name="equal")
-pset.renameArguments(ARG0="a", ARG1="b")
+# Set up the GP primitive set with one argument
+pset = gp.PrimitiveSet("MAIN", 1)
+pset.renameArguments(ARG0="x")
 
+# Add primitives and terminals
+pset.addPrimitive(greater_than, 2, name="gt")
+pset.addPrimitive(less_than, 2, name="lt")
+pset.addPrimitive(equals, 2, name="eq")
+pset.addPrimitive(label_large, 1)
+pset.addPrimitive(label_small, 1)
+pset.addPrimitive(if_then_else, 3)
+pset.addTerminal(1000)
+pset.addTerminal(2000)
+pset.addTerminal("none")  # Fallback for silent case
 
+# Define GP individual and fitness
 creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
 creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
 
 toolbox = base.Toolbox()
 
-toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
+# GP structure generation
+toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=3)
 toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 toolbox.register("compile", gp.compile, pset=pset)
 
-def evalSymbReg(individual, points):
-    """Evaluate the symbolic regression model."""
+# Evaluation function for classification behavior
+def evalClassifier(individual):
     func = toolbox.compile(expr=individual)
-    sqerrors = ((func(x, y) - x) ** 2 for x, y in points)
-    return math.fsum(sqerrors) / len(points),
+    correct_behavior = 0
 
-training_inputs = [(random.randint(-10000, 10000), 200 * random.random() - 100) for index in range(0, 40)]
+    test_inputs = [random.randint(-10000, 10000) for _ in range(20)]
 
-print(training_inputs)
+    for x in test_inputs:
+        try:
+            output = func(x)
+        except Exception:
+            output = None
 
-toolbox.register("evaluate", evalSymbReg, points=training_inputs)
+        if x >= 2000 and output == "large":
+            correct_behavior += 1
+        elif x < 1000 and output == "small":
+            correct_behavior += 1
+        elif 1000 <= x < 2000 and output == "none":
+            correct_behavior += 1
 
-toolbox.register("select", tools.selTournament, tournsize=3)
+    return 1.0 - (correct_behavior / 20),
 
+toolbox.register("evaluate", evalClassifier)
+toolbox.register("select", tools.selTournament, tournsize=5)
 toolbox.register("mate", gp.cxOnePoint)
-
 toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
 toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
-
 toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
 toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
 
@@ -79,7 +99,12 @@ def main():
                                    halloffame=hof, verbose=True)
 
     for winner in hof:
+        print("Best individual:")
         print(str(winner))
+
+        func = toolbox.compile(expr=winner)
+        for x in [500, 1500, 2500]:
+            print(f"x = {x} → output: {func(x)}")
 
     return pop, log, hof
 
