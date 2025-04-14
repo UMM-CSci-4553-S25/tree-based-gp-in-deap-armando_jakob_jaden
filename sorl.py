@@ -35,16 +35,18 @@ pset.renameArguments(ARG0="x")
 pset.addPrimitive(greater_than, 2, name="gt")
 pset.addPrimitive(less_than, 2, name="lt")
 pset.addPrimitive(equals, 2, name="eq")
-pset.addPrimitive(label_large, 1)
-pset.addPrimitive(label_small, 1)
+# pset.addPrimitive(label_large, 1)
+# pset.addPrimitive(label_small, 1)
 pset.addPrimitive(if_then_else, 3)
 pset.addTerminal(1000)
 pset.addTerminal(2000)
+pset.addTerminal("large")
+pset.addTerminal("small")
 pset.addTerminal("none")  # Fallback for silent case
 
 # Define GP individual and fitness
-creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
-creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
+creator.create("FitnessMax", base.Fitness, weights=(1.0,))
+creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
 
 toolbox = base.Toolbox()
 
@@ -55,13 +57,11 @@ toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 toolbox.register("compile", gp.compile, pset=pset)
 
 # Evaluation function for classification behavior
-def evalClassifier(individual):
+def evalClassifier(individual, points):
     func = toolbox.compile(expr=individual)
     correct_behavior = 0
 
-    test_inputs = [random.randint(-10000, 10000) for _ in range(20)]
-
-    for x in test_inputs:
+    for x in points:
         try:
             output = func(x)
         except Exception:
@@ -71,12 +71,14 @@ def evalClassifier(individual):
             correct_behavior += 1
         elif x < 1000 and output == "small":
             correct_behavior += 1
-        elif 1000 <= x < 2000 and output == "none":
+        elif 1000 <= x and x < 2000 and output == "none":
             correct_behavior += 1
 
-    return 1.0 - (correct_behavior / 20),
+    return (correct_behavior / len(points)),
 
-toolbox.register("evaluate", evalClassifier)
+test_inputs = [random.randint(-10000, 10000) for _ in range(100)]
+
+toolbox.register("evaluate", evalClassifier, points=test_inputs)
 toolbox.register("select", tools.selTournament, tournsize=3)
 toolbox.register("mate", gp.cxOnePoint)
 toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
@@ -85,7 +87,7 @@ toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_v
 toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
 
 def main():
-    pop = toolbox.population(n=100)
+    pop = toolbox.population(n=1000)
     hof = tools.HallOfFame(1)
 
     stats_fit = tools.Statistics(lambda ind: ind.fitness.values)
@@ -96,7 +98,7 @@ def main():
     mstats.register("min", numpy.min)
     mstats.register("max", numpy.max)
 
-    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.1, 500, stats=mstats,
+    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.1, 100, stats=mstats,
                                    halloffame=hof, verbose=True)
 
     for winner in hof:
