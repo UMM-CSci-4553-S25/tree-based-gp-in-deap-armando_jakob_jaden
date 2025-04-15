@@ -71,10 +71,12 @@ def evalClassifier(individual, points):
             correct_behavior += 1
         elif x < 1000 and output == "small":
             correct_behavior += 1
-        elif 1000 <= x and x < 2000 and output == "none":
+        elif 1000 <= x < 2000 and output == "none":
             correct_behavior += 1
+        else:
+            correct_behavior -= 0.5  # Penalize misclassifications
 
-    return (correct_behavior / len(points)),
+    return (max(0, correct_behavior) / len(points)),
 
 test_inputs = [random.randint(-10000, 10000) for _ in range(100)]
 
