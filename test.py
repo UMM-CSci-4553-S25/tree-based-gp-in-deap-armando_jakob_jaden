@@ -1,105 +1,98 @@
 import operator
 import random
-import functools
-
 import numpy
+import math
 
+from functools import partial
 from deap import algorithms, base, creator, tools, gp
 
-# ----------------------------
-# Define Boolean Logic Functions
-# ----------------------------
+# Define the comparison and label functions
+def greater_than(x: int, y: int) -> bool:
+    return x > y
 
-def less_than(a: int, b: int) -> bool:
-    return a < b
+def less_than(x: int, y: int) -> bool:
+    return x < y
 
-def greater_or_equal(a: int, b: int) -> bool:
-    return a >= b
+def equals(x: int, y: int) -> bool:
+    return x == y
 
-def greater_than(a: int, b: int) -> bool:
-    return a > b
+def label_large(x: int) -> str:
+    # print("large")
+    return "large"
 
-def if_then_else(condition: bool, true_branch: bool, false_branch: bool) -> bool:
-    return true_branch if condition else false_branch
+def label_small(x: int) -> str:
+    # print("small")
+    return "small"
 
-# ----------------------------
-# Primitive Set Definition
-# ----------------------------
+def if_then_else(condition: bool, out1, out2):
+    return out1 if condition else out2
 
-pset = gp.PrimitiveSetTyped("MAIN", [int, int], bool)
+# Set up the GP primitive set with one argument
+pset = gp.PrimitiveSet("MAIN", 1)
 pset.renameArguments(ARG0="x")
-pset.renameArguments(ARG1="i")
 
-# Logic primitives
-pset.addPrimitive(less_than, [int, int], bool, name="lt")
-pset.addPrimitive(greater_or_equal, [int, int], bool, name="ge")
-pset.addPrimitive(greater_than, [int, int], bool, name="gt")
-pset.addPrimitive(operator.eq, [int, int], bool, name="eq")
-pset.addPrimitive(operator.ne, [int, int], bool, name="ne")
-pset.addPrimitive(if_then_else, [bool, bool, bool], bool, name="if")
+# Add primitives and terminals
+pset.addPrimitive(greater_than, 2, name="gt")
+pset.addPrimitive(less_than, 2, name="lt")
+pset.addPrimitive(equals, 2, name="eq")
+# pset.addPrimitive(label_large, 1)
+# pset.addPrimitive(label_small, 1)
+pset.addPrimitive(if_then_else, 3)
+pset.addTerminal(1000)
+pset.addTerminal(2000)
+pset.addTerminal("large")
+pset.addTerminal("small")
+pset.addTerminal("none")  # Fallback for silent case
 
-# Arithmetic primitives
-pset.addPrimitive(operator.add, [int, int], int, name="add")
-pset.addPrimitive(operator.sub, [int, int], int, name="sub")
-
-# Terminals
-pset.addTerminal(True, bool)
-pset.addTerminal(False, bool)
-pset.addEphemeralConstant("randInt", functools.partial(random.randint, 0, 10), int)
-
-# ----------------------------
-# Setup GP Structure
-# ----------------------------
-
+# Define GP individual and fitness
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))
 creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
 
 toolbox = base.Toolbox()
-toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
+
+# GP structure generation
+toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=3)
 toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 toolbox.register("compile", gp.compile, pset=pset)
 
-# ----------------------------
-# Fitness Evaluation
-# ----------------------------
-
-def evalLogic(individual, points):
+# Evaluation function for classification behavior
+def evalClassifier(individual, points):
     func = toolbox.compile(expr=individual)
-    fitness = 0
-    for x, i in points:
+    correct_behavior = 0
+
+    for x in points:
         try:
-            result = func(x, i)
-            if result == (x < i):
-                fitness += 1
+            output = func(x)
         except Exception:
-            pass  # Penalize by not increasing fitness
-    return fitness,
+            output = None
 
-# Training/Test split
-full_data = [(random.randint(0, 10), random.randint(0, 10)) for _ in range(60)]
-training_data = full_data[:40]
-test_data = full_data[40:]
+        if x >= 2000 and output == "large":
+            correct_behavior += 1
+        elif x < 1000 and output == "small":
+            correct_behavior += 1
+        elif 1000 <= x < 2000 and output == "none":
+            correct_behavior += 1
+        else:
+            correct_behavior -= 0.5  # Penalize misclassifications
 
-toolbox.register("evaluate", evalLogic, points=training_data)
+    return (max(0, correct_behavior) / len(points)),
+
+test_inputs = [random.randint(-10000, 10000) for _ in range(100)]
+
+toolbox.register("evaluate", evalClassifier, points=test_inputs)
 toolbox.register("select", tools.selTournament, tournsize=3)
 toolbox.register("mate", gp.cxOnePoint)
 toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
 toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
-
-# Limit tree height
 toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
 toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
 
-# ----------------------------
-# Main Execution
-# ----------------------------
-
-def main() -> tuple[list, object, tools.HallOfFame]:
-    pop = toolbox.population(n=100)
+def main():
+    pop = toolbox.population(n=1000)
     hof = tools.HallOfFame(1)
 
-    stats_fit = tools.Statistics(lambda ind: ind.fitness.values[0])
+    stats_fit = tools.Statistics(lambda ind: ind.fitness.values)
     stats_size = tools.Statistics(len)
     mstats = tools.MultiStatistics(fitness=stats_fit, size=stats_size)
     mstats.register("avg", numpy.mean)
@@ -107,20 +100,14 @@ def main() -> tuple[list, object, tools.HallOfFame]:
     mstats.register("min", numpy.min)
     mstats.register("max", numpy.max)
 
-    pop, log = algorithms.eaMuPlusLambda(
-        pop, toolbox, mu=100, lambda_=200,
-        cxpb=0.5, mutpb=0.1, ngen=100,
-        stats=mstats, halloffame=hof, verbose=True
-    )
+    pop, log = algorithms.eaSimple(pop, toolbox, 0.5, 0.1, 100, stats=mstats,
+                                   halloffame=hof, verbose=True)
 
-    print("\nBest individual:")
-    print(str(hof[0]))
-    func = toolbox.compile(expr=hof[0])
-    
-    test_correct = sum(1 for x, i in test_data if func(x, i) == (x < i))
-    print(f"Test set accuracy: {test_correct} / {len(test_data)}")
+    for winner in hof:
+        print("Best individual:")
+        print(str(winner))
 
-    return pop, log, hof
+        return pop, log, hof
 
 if __name__ == "__main__":
     main()

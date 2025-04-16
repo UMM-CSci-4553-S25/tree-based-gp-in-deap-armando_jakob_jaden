@@ -16,25 +16,13 @@ def less_than(x: int, y: int) -> bool:
 def equals(x: int, y: int) -> bool:
     return x == y
 
-def less_than_or_equal_to(x: int, y: int) -> bool:
-    return x <= y
+def label_large(x: int) -> str:
+    # print("large")
+    return "large"
 
-def greater_than_or_equal_to(x: int, y: int) -> bool:
-    return x >= y
-
-# def label_large(x: int) -> str:
-#     # print("large")
-#     if x >= 2000:
-#         return "large"
-#     elif 1000 <= x < 2000:
-#         return "none"
-
-# def label_small(x: int) -> str:
-#     # print("small")
-#     if x < 1000:
-#         return "small"
-#     elif 1000 <= x < 2000:
-#         return "none"
+def label_small(x: int) -> str:
+    # print("small")
+    return "small"
 
 def if_then_else(condition: bool, out1, out2):
     return out1 if condition else out2
@@ -47,20 +35,18 @@ pset.renameArguments(ARG0="x")
 pset.addPrimitive(greater_than, 2, name="gt")
 pset.addPrimitive(less_than, 2, name="lt")
 pset.addPrimitive(equals, 2, name="eq")
-pset.addPrimitive(less_than_or_equal_to, 2, name="le")
-pset.addPrimitive(greater_than_or_equal_to, 2, name="ge")
 # pset.addPrimitive(label_large, 1)
 # pset.addPrimitive(label_small, 1)
 pset.addPrimitive(if_then_else, 3)
+pset.addTerminal(1000)
+pset.addTerminal(2000)
 pset.addTerminal("large")
 pset.addTerminal("small")
-pset.addTerminal(2000)
-pset.addTerminal(1000)
-# pset.addTerminal("none")
+pset.addTerminal("none")  # Fallback for silent case
 
 # Define GP individual and fitness
-creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
-creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
+creator.create("FitnessMax", base.Fitness, weights=(1.0,))
+creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
 
 toolbox = base.Toolbox()
 
@@ -71,13 +57,11 @@ toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 toolbox.register("compile", gp.compile, pset=pset)
 
 # Evaluation function for classification behavior
-test_inputs = [random.randint(-10000, 10000) for _ in range(20)]
-
-def evalClassifier(individual):
+def evalClassifier(individual, points):
     func = toolbox.compile(expr=individual)
     correct_behavior = 0
 
-    for x in test_inputs:
+    for x in points:
         try:
             output = func(x)
         except Exception:
@@ -87,12 +71,16 @@ def evalClassifier(individual):
             correct_behavior += 1
         elif x < 1000 and output == "small":
             correct_behavior += 1
-        elif 1000 <= x < 2000 : 
+        elif 1000 <= x < 2000 and output == "none":
             correct_behavior += 1
+        else:
+            correct_behavior -= 0.5  # Penalize misclassifications
 
-    return 1.0 - (correct_behavior / len(test_inputs)),
+    return (max(0, correct_behavior) / len(points)),
 
-toolbox.register("evaluate", evalClassifier)
+test_inputs = [random.randint(-10000, 10000) for _ in range(100)]
+
+toolbox.register("evaluate", evalClassifier, points=test_inputs)
 toolbox.register("select", tools.selTournament, tournsize=3)
 toolbox.register("mate", gp.cxOnePoint)
 toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
@@ -101,7 +89,7 @@ toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_v
 toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
 
 def main():
-    pop = toolbox.population(n=100)
+    pop = toolbox.population(n=1000)
     hof = tools.HallOfFame(1)
 
     stats_fit = tools.Statistics(lambda ind: ind.fitness.values)
